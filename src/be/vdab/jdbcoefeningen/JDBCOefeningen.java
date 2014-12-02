@@ -32,8 +32,8 @@ public class JDBCOefeningen {
             Statement myStatement = myConn.createStatement();
             ResultSet resRecords = myStatement.executeQuery(db);
             Array namen = resRecords.getArray("naam");
-            for()
-                System.out.println(resRecords.)
+           
+                System.out.println(resRecords);
        }
        catch(SQLException ex){System.err.println(ex.getMessage());}
         
