@@ -5,11 +5,13 @@
  */
 package be.vdab.jdbcoefeningen;
 
-import java.sql.Array;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
 /**
  *
@@ -22,21 +24,45 @@ public class JDBCOefeningen {
      */
     public static void main(String[] args) {
         
-        String user="plantAdmin";
-        String paswoord = "plantadmin";
-        String db = "tuincentrum";
+        String userBieren="bierAdmin";
+        String paswoordBieren = "bieradmin";
+        String dbBieren = "bieren";
         
-       MyDAO myDB = new MyDAO();
-       Connection myConn = myDB.getConnectionToDB(db, user, paswoord);
-       try{
-            Statement myStatement = myConn.createStatement();
-            ResultSet resRecords = myStatement.executeQuery(db);
-            Array namen = resRecords.getArray("naam");
-           
-                System.out.println(resRecords);
-       }
-       catch(SQLException ex){System.err.println(ex.getMessage());}
+        String userPlanten="plantAdmin";
+        String paswoordPlanten = "plantadmin";
+        String dbPlanten = "tuincentrum";
+        String query;
         
-        
+        //CONNECTION
+        MyDAO myDB = new MyDAO();
+        Connection myConn = myDB.getConnectionToDB(dbPlanten, userPlanten, paswoordPlanten);
+       
+       
+       //STATEMENT / QUERY
+       ResultSet resRecords;
+        try{
+           query = "select indienst, voornaam, familienaam from werknemers where indienst >= {d '2003-03-01'}";
+           PreparedStatement tmpStatement = myConn.prepareStatement(query);
+           resRecords = tmpStatement.executeQuery();
+                while(resRecords.next()){
+                  System.out.print(resRecords.getDate("indienst"));
+                  System.out.print(" ");
+                  System.out.print(resRecords.getString("voornaam"));
+                  System.out.print(" ");
+                  System.out.println(resRecords.getString("familienaam"));
+                }    
+            }
+       
+        catch(SQLException ex){ex.getMessage();}
+        finally{
+            if(myConn!=null){
+                try{
+                   myConn.close();
+               }
+                catch(SQLException ex){System.err.println(ex.getMessage());}
+            }
+       } 
     }
+       
+    
 }
