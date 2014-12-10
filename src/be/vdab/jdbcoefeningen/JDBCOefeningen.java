@@ -5,10 +5,12 @@
  */
 package be.vdab.jdbcoefeningen;
 
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -31,29 +33,30 @@ public class JDBCOefeningen {
         String userPlanten="plantAdmin";
         String paswoordPlanten = "plantadmin";
         String dbPlanten = "tuincentrum";
-        String query;
+        String UpdateSQL1 = "update bieren set brouwerid = 2 where (brouwerid = 1 and alcohol >= 8.50)";
+        String UpdateSQL2 = "update bieren set brouwerid = 3 where (brouwerid = 1 and alcohol < 8.50)";
+        String UpdateSQL3  ="delete from brouwers where id=1";
+        
         
         //CONNECTION
         MyDAO myDB = new MyDAO();
-        Connection myConn = myDB.getConnectionToDB(dbPlanten, userPlanten, paswoordPlanten);
-       
-       
+        Connection myConn = myDB.getConnectionToDB(dbBieren, userBieren, paswoordBieren);
+              
        //STATEMENT / QUERY
-       ResultSet resRecords;
-        try{
-           query = "select indienst, voornaam, familienaam from werknemers where indienst >= {d '2003-03-01'}";
-           PreparedStatement tmpStatement = myConn.prepareStatement(query);
-           resRecords = tmpStatement.executeQuery();
-                while(resRecords.next()){
-                  System.out.print(resRecords.getDate("indienst"));
-                  System.out.print(" ");
-                  System.out.print(resRecords.getString("voornaam"));
-                  System.out.print(" ");
-                  System.out.println(resRecords.getString("familienaam"));
-                }    
+                              
+            ResultSet resRecords;
+            try{
+                myConn.setAutoCommit(false);
+                Statement tmpStatement = myConn.createStatement();
+                tmpStatement.addBatch(UpdateSQL1);
+                tmpStatement.addBatch(UpdateSQL2);
+                //tmpStatement.addBatch(UpdateSQL3);
+                tmpStatement.executeBatch();
+                myConn.commit();
+                 
             }
        
-        catch(SQLException ex){ex.getMessage();}
+        catch(SQLException ex){ex.printStackTrace();}
         finally{
             if(myConn!=null){
                 try{
@@ -62,7 +65,6 @@ public class JDBCOefeningen {
                 catch(SQLException ex){System.err.println(ex.getMessage());}
             }
        } 
-    }
-       
+    }      
     
 }
