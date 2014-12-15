@@ -59,11 +59,9 @@ public class BankVerrichtingen {
                         break;
                     case CONSULTEER_REKENING:
                         consulteerRekening(sc);
-                        flagContinue = false;
                         break;
                     case OVERSCHRIJVEN:
                         doeOverschrijving(sc);
-                        flagContinue = false;
                         break;
                     case ERROR:
                         System.out.println("Ongeldige keuze. Voer andere keuze in");
@@ -100,19 +98,16 @@ public class BankVerrichtingen {
     private static void consulteerRekening(Scanner sc){
         System.out.println("Geef het te consulteren rekeningnummer (12 cijfers):");
         String rekeningNr = sc.next();
-        try{
-        rekeningen.consulteerRekening(Long.parseLong(rekeningNr));
+        
+        System.out.println();
+        System.out.println(rekeningen.consulteerRekening(Long.parseLong(rekeningNr)));
+        System.out.println();
         }
-        catch(RekeningException ex){System.err.println(ex.getMessage());}
-    }
    
     private static void maakNieuweRekening(Scanner sc){
         System.out.println("Geef het rekeningnummer (12 cijfers):");
         String rekeningNr = sc.next();
-        try{
         rekeningen.maakEenRekeningAan(Long.parseLong(rekeningNr));
-        }
-        catch(RekeningException ex){ex.getMessage();}
     }
        
     private static void doeOverschrijving(Scanner sc){
@@ -126,6 +121,6 @@ public class BankVerrichtingen {
         try{
             rekeningen.schrijfBedragOver(Long.parseLong(vanRekeningNr), Long.parseLong(naarRekeningNr), bedrag);
         }
-        catch(RekeningException ex){ex.getMessage();}
+        catch(RekeningException ex){System.err.println(ex.getMessage());}
     }
 }

@@ -14,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Hashtable;
 
-
 /**
  *
  * @author Andy.mertens
@@ -29,28 +28,31 @@ public class RekeningManager implements Valideer {
     private PreparedStatement myUpdateStatement;
     private Statement myQueryStatement;
      
-    private final String QUERY_ZOEK_REKENINGEN="select RekeningNr from rekeningen";
+    private final String QUERY_ZOEK_REKENINGEN="select RekeningNr,Saldo from rekeningen";
     private final String QUERY_MAAK_REKENING="insert into rekeningen(RekeningNr,Saldo) values(?,0)";
-    private final String QUERY_SET_SALDO = "update rekeningen(Saldo) values(?) where RekeningNr =?";
+    private final String QUERY_SET_SALDO = "update rekeningen set Saldo =? where RekeningNr =?";
     
     private final String USER_REKENING="adminRekeningen";
     private final String PASWOORD_REKENING="adminrekeningen";
-    private final String DATABASE_REKENING="rekeningen";
+    private final String DATABASE_REKENING="jdbc:mysql://localhost:3306/rekeningen";
     private final String KOLOM_REKENING_NUMMER="RekeningNr";
-    private final String KOLOM_REKENING_SALDO="RekeningNr";
+    private final String KOLOM_REKENING_SALDO="Saldo";
+    
     
   
     public RekeningManager(){
         
         try{
-            conn = DriverManager.getConnection(USER_REKENING, PASWOORD_REKENING, DATABASE_REKENING);
+            //Class.forName("com.mysql.jdbc.Driver");
+            conn = DriverManager.getConnection(DATABASE_REKENING, USER_REKENING, PASWOORD_REKENING);
             
             myQueryStatement = conn.createStatement();
             ResultSet resultset = myQueryStatement.executeQuery(QUERY_ZOEK_REKENINGEN);
-            if(resultset.first()){
-                while(resultset.next()){
+            while(resultset.next()){
+                   System.err.print(String.valueOf(resultset.getLong("RekeningNr")));
+                   System.err.print("-");
+                   System.err.println(String.valueOf(resultset.getBigDecimal("Saldo")));
                    Rekeningen.put(resultset.getLong("RekeningNr"),new Rekening(resultset.getLong("RekeningNr"),resultset.getBigDecimal("Saldo")));
-                }
             }
         }
         catch(SQLException ex){System.err.println(ex.getMessage());}
@@ -60,44 +62,63 @@ public class RekeningManager implements Valideer {
         }
     }
     
-    public String consulteerRekening(long rekeningnr)throws RekeningException{
+    public String consulteerRekening(long rekeningnr){
         
-        Rekening tmpRekening =getRekening(rekeningnr);
-         
-        if(tmpRekening==null)
-            throw new RekeningException("Rekening \"" + rekeningnr + "\" niet gevonden.");
-        else return tmpRekening.toString();
-    }    
+        String strConsult="";
+        
+        try{
+            valideerRekening(rekeningnr);
+        
+            Rekening tmpRekening =getRekening(rekeningnr);
+            if(tmpRekening== null)
+                strConsult = "Rekening (" + String.valueOf(rekeningnr) + ") bestaat niet";
+            else
+                strConsult = tmpRekening.toString();
+        }
+        catch(RekeningException ex){System.err.println(ex.getMessage());}
+        
+        finally{
+            return strConsult;
+        }
+    }
+
     
-    public void maakEenRekeningAan(long rekeningnr) throws RekeningException{
+    
+    public void maakEenRekeningAan(long rekeningnr){
        
         Rekening tmpRekening;
         ResultSet resultset;
         
-        if(!valideerRekening(rekeningnr)){
-            if (getRekening(rekeningnr)==null)
-            {
-                tmpRekening = new Rekening(rekeningnr);
+        
+        try{
+                valideerRekening(rekeningnr);
+                if (!Rekeningen.containsKey(rekeningnr))
+                {
+                    tmpRekening = new Rekening(rekeningnr);
                 
-                try{
-                    conn = DriverManager.getConnection(USER_REKENING, PASWOORD_REKENING, DATABASE_REKENING);
-                    conn.setAutoCommit(false);
-                    myUpdateStatement = conn.prepareStatement(QUERY_MAAK_REKENING,PreparedStatement.RETURN_GENERATED_KEYS);
-                    myUpdateStatement.setLong(1, rekeningnr);
-                    myUpdateStatement.executeUpdate();
-                    resultset = myUpdateStatement.getGeneratedKeys();
-                    if(resultset.first()){
+                    try{
+                        conn = DriverManager.getConnection(DATABASE_REKENING, USER_REKENING, PASWOORD_REKENING);
+                        conn.setAutoCommit(false);
+                        myUpdateStatement = conn.prepareStatement(QUERY_MAAK_REKENING,PreparedStatement.RETURN_GENERATED_KEYS);
+                        myUpdateStatement.setLong(1, rekeningnr);
+                        myUpdateStatement.executeUpdate();
                         conn.commit();
                         Rekeningen.put(rekeningnr, tmpRekening);
                         System.out.println("Nieuwe rekening aangemaakt : "+ tmpRekening.toString());
                     }
-                }
-                catch(SQLException ex){System.out.println(ex.getMessage());} 
-                finally{
-                    try{ if(!conn.isClosed()) conn.close();}
-                    catch(SQLException ex){System.out.println(ex.getMessage());}
-                }
-            }
+                    
+                    catch(SQLException ex){System.err.println(ex.getMessage());} 
+                    finally{
+                        try{ if(!conn.isClosed()) conn.close();}
+                        catch(Exception ex){System.err.println(ex.getMessage());}
+                    }
+                }//end try SQL
+            //}//end if valideerrekening
+        }//end try valideer
+        catch(RekeningException ex){System.out.println(ex.getMessage());} 
+        finally{
+            try{ if(!conn.isClosed()) conn.close();}
+            catch(Exception ex){System.out.println(ex.getMessage());}
         }
     }
      
@@ -110,72 +131,83 @@ public class RekeningManager implements Valideer {
         if(bedrag.doubleValue()<0)
             throw new RekeningException("Bedrag moet groter dan nul zijn");
         
-        //rekeningen moeten alletwee beschikbaar zijn
-        if(!Rekeningen.containsKey(vanRekeningNr))
-            throw new RekeningException("Rekening " + String.valueOf(vanRekeningNr) + "bestaat niet");
+        try{        
+            valideerRekening(vanRekeningNr);
+            valideerRekening(naarRekeningNr);
+            
+            //rekeningen moeten alletwee beschikbaar zijn
+            if(!Rekeningen.containsKey(vanRekeningNr))
+                throw new RekeningException("Rekening " + String.valueOf(vanRekeningNr) + " bestaat niet");
         
-        if(!Rekeningen.containsKey(naarRekeningNr))
-            throw new RekeningException("Rekening " + String.valueOf(naarRekeningNr)+ "bestaat niet");
-        {
+            if(!Rekeningen.containsKey(naarRekeningNr))
+                throw new RekeningException("Rekening " + String.valueOf(naarRekeningNr)+ "bestaat niet");
+            {
                            
-        try{
-            conn = DriverManager.getConnection(USER_REKENING, PASWOORD_REKENING, DATABASE_REKENING);
-            conn.setAutoCommit(false);
-            myUpdateStatement = conn.prepareStatement(QUERY_SET_SALDO);
-
-            //batch statements voor vanRekening
-            myUpdateStatement.setBigDecimal(1, Rekeningen.get(vanRekeningNr).getSaldo().subtract(bedrag));
-            myUpdateStatement.setLong(2, vanRekeningNr);
-            myUpdateStatement.addBatch();
-
-            //batch statements voor naarRekening
-           myUpdateStatement.setBigDecimal(1, Rekeningen.get(vanRekeningNr).getSaldo().add(bedrag));
-            myUpdateStatement.setLong(2, naarRekeningNr);
-            myUpdateStatement.addBatch();
-
-            //check all db statements are ok
-            int resultset[] =  myUpdateStatement.executeBatch();  
-            if (resultset.length==2){
-                conn.commit();
-                Rekeningen.get(vanRekeningNr).setSaldo(Rekeningen.get(vanRekeningNr).getSaldo().subtract(bedrag));
-                Rekeningen.get(naarRekeningNr).setSaldo(Rekeningen.get(naarRekeningNr).getSaldo().add(bedrag));
-                System.out.println(Rekeningen.get(vanRekeningNr).toString());
-                 System.out.println(Rekeningen.get(naarRekeningNr).toString());
-            }
-        }           
-            catch(SQLException ex){System.err.println(ex.getMessage());}
-            finally{
                 try{
-                    if(!conn.isClosed()) conn.close();
+                    conn = DriverManager.getConnection(DATABASE_REKENING, USER_REKENING, PASWOORD_REKENING);
+                    conn.setAutoCommit(false);
+                    myUpdateStatement = conn.prepareStatement(QUERY_SET_SALDO);
+
+                    //batch statements voor vanRekening
+                    myUpdateStatement.setBigDecimal(1, Rekeningen.get(vanRekeningNr).getSaldo().subtract(bedrag));
+                    myUpdateStatement.setLong(2, vanRekeningNr);
+                    myUpdateStatement.addBatch();
+
+                    //batch statements voor naarRekening
+                   myUpdateStatement.setBigDecimal(1, Rekeningen.get(vanRekeningNr).getSaldo().add(bedrag));
+                    myUpdateStatement.setLong(2, naarRekeningNr);
+                    myUpdateStatement.addBatch();
+
+                    //check all db statements are ok
+                    int resultset[] =  myUpdateStatement.executeBatch();  
+                    if (resultset.length==2){
+                        conn.commit();
+                        Rekeningen.get(vanRekeningNr).setSaldo(Rekeningen.get(vanRekeningNr).getSaldo().subtract(bedrag));
+                        Rekeningen.get(naarRekeningNr).setSaldo(Rekeningen.get(naarRekeningNr).getSaldo().add(bedrag));
+                        System.out.println(Rekeningen.get(vanRekeningNr).toString());
+                         System.out.println(Rekeningen.get(naarRekeningNr).toString());
+                    }
+                }           
+                catch(SQLException ex){System.err.println(ex.getMessage());}
+                finally{
+                    try{
+                        if(!conn.isClosed()) conn.close();
+                    }
+                    catch(Exception ex){System.err.println(ex.getMessage());}
                 }
-                catch(Exception ex){System.err.println(ex.getMessage());}
             }
         }
-        }
+        catch(RekeningException ex){System.err.println(ex.getMessage());}
+       
+    }
+    
    @Override public boolean valideerRekening(long rekeningnr)throws RekeningException{ 
         boolean isValid = false;
-
+        
         String rekening = String.valueOf(rekeningnr);
         if(!(rekening.length()==12))
-           throw new RekeningException("Rekeningnummer. Moet bestaan uit 12 cijfers");
+           throw new RekeningException("Rekeningnummer moet bestaan uit 12 cijfers");
                
-        long GetalRekening = Long.parseLong(rekening.substring(0, 11));
-        long controlegetal = rekeningnr/100;
-
-        if( !(((int)(GetalRekening / CONTROLE_GETAL_REF)) == (int)controlegetal))
+        long GetalRekening = Long.parseLong(rekening.substring(0, 10));
+        int controlegetal = Integer.parseInt(rekening.substring(10,rekening.length()));
+        
+        if( !(((int)(GetalRekening % (CONTROLE_GETAL_REF)) % (int)controlegetal) == 0))
            throw new RekeningException("Ongeldig Rekeningnummer. Controlegetal klopt niet");
-           
+        
         return isValid;
+        
     }   
    
-      private Rekening getRekening(long rekeningnr)throws RekeningException{
-              
-       if(Rekeningen.isEmpty()) throw new RekeningException("Er zijn nog geen rekeningen aangemaakt");
-       else{
+      private Rekening getRekening(long rekeningnr){
+       
+          System.err.println("in functie get rekening");
+          
+       Rekening tmpRekening = null;
+          
+       if(!Rekeningen.isEmpty()){
            if(Rekeningen.containsKey(rekeningnr))
-               return Rekeningen.get(rekeningnr);
-           else
-               return null;
+               tmpRekening = Rekeningen.get(rekeningnr);
        }
+       return tmpRekening;
     }
 }
